@@ -52,6 +52,14 @@ class Parameter(object):
     def __lt__(self, other):
         return self.priority < other.priority
 
+    def manageable(self):
+        # Returns True if this Parameter is of a type
+        # that can be used with CUDA managed memory.
+        # Returns False otherwise.
+        if self.type == "integer" or self.type == "logical" or self.type == "real":
+            return True
+        else:
+            return False
 
 def get_next_line(fin):
     # return the next, non-blank line, with comments stripped
@@ -221,7 +229,7 @@ def write_probin(probin_template, param_A_files, param_B_files,
                             fout.write("{}!$acc declare create({})\n".format(indent, pm[n].var))
 
                         elif type == "character":
-                            fout.write("{}character (len=256), allocatable, public :: {}\n".format(
+                            fout.write("{}character (len=256), save, public :: {}\n".format(
                                 indent, pm[n].var, pm[n].value))
                             fout.write("{}!$acc declare create({})\n".format(indent, pm[n].var))
 
@@ -275,13 +283,15 @@ def write_probin(probin_template, param_A_files, param_B_files,
                     elif keyword == "cudaattributesB":
                         pm = paramsB
                     for pmi in pm:
-                        fout.write("{}attributes(managed) :: {}\n".format(indent, pmi.var))
+                        if pmi.manageable():
+                            fout.write("{}attributes(managed) :: {}\n".format(indent, pmi.var))
                         
             elif keyword == "allocations":
                 if managed:
                     pm = paramsA + paramsB
                     for pmi in pm:
-                        fout.write("{}allocate({})\n".format(indent, pmi.var))
+                        if pmi.manageable():
+                            fout.write("{}allocate({})\n".format(indent, pmi.var))
 
             elif keyword == "initialize":
                 if managed:
@@ -293,7 +303,8 @@ def write_probin(probin_template, param_A_files, param_B_files,
                 if managed:
                     pm = paramsA + paramsB
                     for pmi in pm:
-                        fout.write("{}deallocate({})\n".format(indent, pmi.var))
+                        if pmi.manageable():
+                            fout.write("{}deallocate({})\n".format(indent, pmi.var))
                     
             elif keyword == "namelist":
 
